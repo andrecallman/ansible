@@ -1,0 +1,16 @@
+# Definições do Zabbix Server 
+zbx_srv_url: http://monitor.andreantunes.ml
+zbx_srv_addr: monitor.andreantunes.ml
+zbx_srv_user: Admin
+zbx_srv_pass: *****
+
+# Definições do Zabbix Proxy
+zbx_prx_name: TEMPEX
+zbx_prx_agent: yes
+
+# Definições do cliente
+zbx_clt_name:
+zbx_clt_grp:
+
+
+
