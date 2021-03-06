@@ -1,10 +1,11 @@
 ---
 -
-  include: vars.yaml
+  hosts: all 
 
-  hosts: "{{ zbx_prx_addr }}" 
-    
   tasks:
+
+    - name: Lendo variaveis
+      include_vars: vars.yaml
 
     - name: Desabilitando o Selinux
       selinux: 
@@ -13,14 +14,46 @@
     - name: Reboot do server
       reboot:
 
-    - name: Instalando pacotes necessarios do Zabbix   
+    - name: Instalando o Repositorio do Zabbix   
       yum:
-        name: 
+        name: https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-2.el7.noarch.rpm 
         state: present 
     
-    - name: Configurando o Zabbix Proxy 
+    - name: Instalando pacotes necessarios do Zabbix Proxy|Agent
+      yum:
+        name:
+          - zabbix-proxy
+          - zabbix-agent
+          - zabbix-get
+          - zabbix-sender
+        state: present       
+
+    - name: Gerando arquivo de chave do Zabbix Proxy
+      shell: echo "{{ zbx_prx_name }}" | md5sum | cut -f 1 -d " " > /etc/zabbix/"{{ zbx_prx_name }}".key && cat /etc/zabbix/"{{ zbx_prx_name }}".key
+      register: zbx_prx_key
+        
+    - name: Configurando Zabbix Proxy
       replace:
-        regex: " {{ items.from }} "       
-        replace: " {{ items.to }} "
-      with-items:
-        - { from:    }- 	  
+        path: /etc/zabbix/zabbix_proxy.conf      
+        regexp: "{{ item.from }}"
+        replace: "{{ item.to }}"
+      with_items:
+        - { from: 'Server=127\.0\.0\.1', to: 'Server={{ zbx_srv_addr  }}'}
+        - { from: 'Hostname=Zabbix proxy', to: 'Hostname={{ zbx_prx_name }}'}
+        - { from: '# EnableRemoteCommands=0', to: 'EnableRemoteCommands=1'}
+        - { from: 'DBName=zabbix_proxy', to: 'DBName=/tmp/zabbix.db'}
+        - { from: 'Timeout=4', to: 'Timeout=30'}
+        - { from: '# TLSConnect=unencrypted', to: 'TLSConnect=psk'}
+        - { from: '# TLSAccept=unencrypted', to: 'TLSAccept=psk'}
+        - { from: '# TLSPSKIdentity=', to: 'TLSPSKIdentity={{ zbx_prx_name | lower }}'}
+        - { from: '# TLSPSKFile=', to: 'TLSPSKFile=/etc/zabbix/{{ zbx_prx_name }}.key'}      
+    
+    - name: Reiniciando servico do Zabbix Proxy
+      service:
+        name: zabbix-proxy 
+        state: restarted
+        enabled: yes 
+
+    - name: Registrando Zabbix Proxy no Server e criando grupo do cliente 
+      local_action: command "{{ python_bin }}" ./zabbix_new_proxy.py  "{{ zbx_srv_url }}" "{{ zbx_srv_user }}" "{{ zbx_srv_pass }}" "{{ zbx_prx_name }}" "{{ zbx_prx_key.stdout }}"
+    
