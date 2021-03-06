@@ -2,7 +2,7 @@
 zbx_srv_url: http://monitor.andreantunes.ml
 zbx_srv_addr: monitor.andreantunes.ml
 zbx_srv_user: Admin
-zbx_srv_pass: a123456@
+zbx_srv_pass: *****
 
 # Definições do Zabbix Proxy
 zbx_prx_name: TEMPEX
