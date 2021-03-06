@@ -1,0 +1,40 @@
+---
+-
+  hosts: all
+
+  tasks:
+    - name: Realizando backup do arquivo BlockHeader.ihtml
+      copy:
+        src: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
+        dest: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml.default
+        remote_src: true
+
+#    - name: Alterando o conteudo de BlockHeader.ihtml
+#      replace:
+#         path: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
+#         regexp: '<th>{t}Poller States{\/t}<\/th>'
+#         replace: '<th><a style=\"background: url('./img/icons/config.png');background-size:20px 20px;width:20px;height:20px;float:left;\" title=\"Restart All Pollers\" href=\"main.php?p=60902\&customRestartAllPollers=1\"></a></th><th>{t}Poller States{/t}</th>'
+
+    - name: Copiando arquivo alterado BlockHeader.ihtml
+      copy:
+        src: ./files/BlockHeader.ihtml
+        dest: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
+        force: yes
+        owner: centreon
+        group: centreon
+        mode: '0775'
+
+    - name: Realizando backup do arquivo formGenerateFiles.php
+      copy:
+        src: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php
+        dest: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php.default
+        remote_src: true
+
+    - name: Copiando arquivo alterado formGenerateFiles.php
+      copy:
+        src: ./files/formGenerateFiles.php
+        dest: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php
+        force: yes
+        owner: centreon
+        group: centreon
+        mode: '0775'

@@ -1,0 +1,227 @@
+---
+-
+  hosts: all
+    
+  tasks:
+    - name: "Lendo variaveis"    
+      include_vars: vars.yaml
+  
+    - name: Desabilitando o Selinux
+      selinux: 
+        state=disabled
+    
+#    - name: Reboot Server
+#      reboot:
+    
+    - name: Liberando a portas no firewall
+      firewalld:
+        port: "{{ item.port }}"
+        permanent: "{{ item.permanent }}"
+        state: "{{ item.state }}"
+      with_items:
+        - {port: '80/tcp', state: enabled, permanent: yes}       
+        - {port: '8080/tcp' , state: enabled, permanent: yes}       
+        - {port: '8088/tcp' , state: enabled, permanent: yes}       
+        - {port: '443/tcp' , state: enabled, permanent: yes}       
+        - {port: '12482/tcp' , state: enabled, permanent: yes}       
+        - {port: '5669/tcp' , state: enabled, permanent: yes}      
+      
+    - name: Reiniciando servico firewalld
+      service:
+        name: firewalld
+        state: restarted
+        enabled: yes
+
+    - name: Setando timezone para America-Sao_Paulo
+      timezone:
+        name: America/Sao_Paulo
+ 
+    - name: Ajustando arquivo de configuracao repos CentOS Base
+      replace:
+        path: /etc/yum.repos.d/CentOS-Base.repo
+        regexp: "{{ item.from}}"
+        replace: "{{item.to}}"
+      with_items:
+        - { from: '#baseurl=http:\/\/mirror\.centos\.org\/centos\/\$releasever\/os\/\$basearch\/', to: 'baseurl=http://mirror.centos.org/centos/$releasever/os/$basearch/' }
+        - { from: '#baseurl=http:\/\/mirror\.centos\.org\/centos\/\$releasever\/updates\/\$basearch\/', to: 'baseurl=http://mirror.centos.org/centos/$releasever/updates/$basearch/' }
+        - { from: '#baseurl=http:\/\/mirror\.centos\.org\/centos\/\$releasever\/extras\/\$basearch\/', to: 'baseurl=http://mirror.centos.org/centos/$releasever/extras/$basearch/' }
+        - { from: '#baseurl=http:\/\/mirror\.centos\.org\/centos\/\$releasever\/centosplus\/\$basearch\/', to: 'baseurl=http://mirror.centos.org/centos/$releasever/centosplus/$basearch/' }
+        
+    - name: Instalando pacotes necessarios
+      yum: 
+        name:
+          - vim
+          - vim 
+          - net-tools 
+          - wget 
+          - curl 
+          - zip 
+          - unzip 
+          - sysstat 
+          - mlocate 
+          - gcc 
+          - openssl-devel 
+          - telnet 
+          - net-snmp-utils 
+          - whois 
+          - rsync 
+          - ntpdate 
+        state: present
+    
+#    - name: Realizando o Yum Update
+#      command: yum update -y
+#      args:
+#        warn: false
+    
+    - name: Criando usuario Centreon
+      user:
+        name: centreon
+        home: /var/spool/centreon
+        
+    
+    - name: Criando diretorio do usuario Centreon
+      file:
+       path: /var/spool/centreon
+       state: directory
+       mode: '0755'
+       recurse: yes
+       owner: centreon
+       group: centreon
+       
+    - name: Instalando repositorio Centreon 3.4
+      yum:
+        name: http://yum.centreon.com/standard/3.4/el7/stable/noarch/RPMS/centreon-release-3.4-4.el7.centos.noarch.rpm
+
+
+    - name: Instalando pacotes Centreon 3.4 - Engine
+      yum: 
+        name: 
+          - centreon-base-config-centreon-engine
+          - centreon-pp-manager-2.4.0-1.el7.centos.noarch
+          - centreon
+          - mysql-server
+          - MySQL-python
+        state: present
+
+    - name: Reiniciando servicoo mysqld
+      service:
+        name: mysqld
+        state: restarted
+        enabled: yes
+
+    - name: Ajustando arquivo de configuracao de banco de dados do centreon
+      replace:
+        path: /etc/my.cnf.d/centreon.cnf
+        regexp: '#innodb_buffer_pool_size=512M'
+        replace: 'innodb_buffer_pool_size=512M'
+    
+    - name: Gerando senha randomica do mysql 
+      shell: date +%s | sha256sum | base64 | head -c 32;echo
+      register: db_pass
+      
+    - name: Mostrando senha gerada 
+      debug:
+        msg: "{{ db_pass.stdout }}" 
+       
+    - name: Atualizando senha do root do mysql para {{ db_pass.stdout  }}
+      mysql_user: 
+        name: root 
+        host: "{{ item }}" 
+        password: "{{ db_pass.stdout  }}"
+      with_items:
+        - 127.0.0.1
+        - ::1
+        - localhost
+
+    - name: Deletando usuario anonimo do MySQL
+      mysql_user: 
+        name: "" 
+        host: "{{ item }}"
+        state: absent
+        login_user: root
+        login_password: "{{ db_pass.stdout  }}"
+      with_items:
+        - localhost
+        - "{{ansible_nodename}}"
+
+    - name: Removendo base de teste do MySQL
+      mysql_db: 
+        name: test 
+        state: absent
+        login_user: root
+        login_password: "{{ db_pass.stdout  }}"
+
+    - name: Ajustando arquivo de configuracao de timezone no PHP.ini
+      replace:
+        path: /etc/php.ini
+        regexp: "{{ item.from }}"
+        replace: "{{ item.to }}"
+      with_items:
+        - {from: ';date\.timezone =', to: 'date.timezone = America/Sao_Paulo'}
+        - {from: 'post_max_size = 8M', to: 'post_max_size = 25M'}
+
+    - name: Iniciando servico httpd
+      service:
+        name: httpd
+        state: restarted
+        enabled: yes
+    
+    - name: Adicionando configuracao ao servico do MySQL
+      shell: echo LimitNOFILE=32000 >> /etc/systemd/system/mysql.service && systemctl daemon-reload && systemctl restart mysqld
+      
+
+    - name: Realizando backup do arquivo BlockHeader.ihtml 
+      copy:
+        src: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
+        dest: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml.default 
+        remote_src: true
+
+    - name: Copiando arquivo alterado BlockHeader.ihtml
+      copy:
+        src: ./files/BlockHeader.ihtml
+        dest: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
+        force: yes
+        owner: centreon
+        group: centreon
+        mode: '0775'
+
+    - name: Realizando backup do arquivo formGenerateFiles.php 
+      copy:
+        src: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php
+        dest: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php.default 
+        remote_src: true
+
+    - name: Copiando arquivo alterado formGenerateFiles.php
+      copy:
+        src: ./files/formGenerateFiles.php
+        dest: /usr/share/centreon/www/include/configuration/configGenerate/formGenerateFiles.php
+        force: yes
+        owner: centreon
+        group: centreon
+        mode: '0775'
+
+    - name: Continue a instalacao acessando http://{{hostvars[inventory_hostname]['ansible_default_ipv4']['address']}}/centreon   .
+      shell: echo 0 > /dev/null
+
+    - name: Personalizando as configs iniciais de admin
+      replace:
+        path: /usr/share/centreon/www/install/steps/step5.php
+        regexp: "{{ item.from}}"
+        replace: "{{item.to}}"
+      with_items:
+        - { from: "'ADMIN_PASSWORD' => ''", to: "'ADMIN_PASSWORD' => '{{ adm_pass }}'"}
+        - { from: "'confirm_password' => ''", to: "'confirm_password' => '{{ adm_pass }}'"}
+        - { from: "'firstname' => ''", to: "'firstname' => '{{ adm_first_name }}'"}
+        - { from: "'lastname' => ''", to: "'lastname' => '{{ adm_last_name }}'" }
+        - { from: "'email' => ''", to: "'email' => '{{ adm_email }}'" }
+    
+    - name: Personalizando as configs iniciais de banco de dados
+      replace:
+        path: /usr/share/centreon/www/install/steps/step6.php
+        regexp: "{{ item.from}}"
+        replace: "{{item.to}}"
+      with_items:
+        - { from: "'ADDRESS' => ''", to: "'ADDRESS' => '{{ db_host }}'"}
+        - { from: "'root_password' => ''", to: "'root_password' => '{{ db_pass.stdout }}'"}
+        - { from: "'DB_PASS' => ''", to: "'DB_PASS' => '{{ db_pass.stdout }}'"}
+        - { from: "'db_pass_confirm' => ''", to: "'db_pass_confirm' => '{{ db_pass.stdout }}'"}

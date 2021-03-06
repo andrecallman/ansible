@@ -1,0 +1,26 @@
+---
+-
+  include: vars.yaml
+
+  hosts: "{{ zbx_prx_addr }}" 
+    
+  tasks:
+
+    - name: Desabilitando o Selinux
+      selinux: 
+        state=disabled
+
+    - name: Reboot do server
+      reboot:
+
+    - name: Instalando pacotes necessarios do Zabbix   
+      yum:
+        name: 
+        state: present 
+    
+    - name: Configurando o Zabbix Proxy 
+      replace:
+        regex: " {{ items.from }} "       
+        replace: " {{ items.to }} "
+      with-items:
+        - { from:    }- 	  
