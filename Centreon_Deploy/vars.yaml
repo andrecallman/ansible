@@ -2,9 +2,9 @@
 
 # Configs iniciais de Admin
 
-adm_pass: *** 
-adm_first_name: Andre 
-adm_last_name: Antunes 
+adm_pass: a123456@
+adm_first_name: Andre
+adm_last_name: Antunes
 adm_email: andre.antunes@groundwork.com.br
 
 # Configs de banco de dados

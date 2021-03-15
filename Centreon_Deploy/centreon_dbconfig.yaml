@@ -1,1 +1,51 @@
-..
+---
+-
+  hosts: all
+  
+  tasks:
+    - name: "Lendo variaveis"    
+      include_vars: vars.yaml
+    
+    - name: Lendo recursos
+      local_action: shell cat ./pass
+      register: db_pass
+      
+    - name: Ajustando opções do centreon
+      community.mysql.mysql_query:
+        login_db: mysql
+        login_user: root
+        login_password: '{{ db_pass.stdout }}' 
+        query:
+          - UPDATE centreon.options SET value = 0 WHERE `key` = 'monitoring_ack_sticky'
+          - UPDATE centreon_storage.config SET reporting_retention = 365, archive_retention = 365, len_storage_mysql = 365, len_storage_rrd = 365
+        single_transaction: yes
+    
+    - name: Gerando senha randomica do usuario centreon_read 
+      shell: date +%s | sha256sum | base64 | head -c 32;echo
+      register: centreon_db_pass
+    
+    - name: Mostrando senha gerada 
+      debug:
+        msg: "{{ centreon_db_pass.stdout }}"
+    
+    - name: Criando usuario centreon_read do MySQL
+      mysql_user: 
+        login_user: root
+        login_password: "{{ db_pass.stdout }}"
+        name: "centreon_read" 
+        password: "{{ centreon_db_pass.stdout }}"
+        state: present
+      
+        
+    - name: Permissionando usuario centreon_read na base centreon
+      mysql_user: 
+        login_user: root
+        login_password: "{{ db_pass.stdout }}"
+        name: "centreon_read" 
+        password: "{{ centreon_db_pass.stdout }}"
+        priv: '{{ item.database }}.{{ item.table }}:{{ item.grant }},GRANT'
+        state: present
+        host: localhost
+        with_items:
+          - { database: centreon, table: '*', grant: SELECT }
+          - { database: centreon_storage, table: '*', grant: SELECT }

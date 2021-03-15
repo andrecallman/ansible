@@ -116,7 +116,7 @@
         replace: 'innodb_buffer_pool_size=512M'
     
     - name: Gerando senha randomica do mysql 
-      shell: date +%s | sha256sum | base64 | head -c 32;echo
+      shell: date +%s | sha256sum | base64 | head -c 32;echo | tee pass
       register: db_pass
       
     - name: Mostrando senha gerada 
@@ -169,7 +169,6 @@
     - name: Adicionando configuracao ao servico do MySQL
       shell: echo LimitNOFILE=32000 >> /etc/systemd/system/mysql.service && systemctl daemon-reload && systemctl restart mysqld
       
-
     - name: Realizando backup do arquivo BlockHeader.ihtml 
       copy:
         src: /usr/share/centreon/www/include/core/menu/templates/BlockHeader.ihtml
@@ -200,9 +199,6 @@
         group: centreon
         mode: '0775'
 
-    - name: Continue a instalacao acessando http://{{hostvars[inventory_hostname]['ansible_default_ipv4']['address']}}/centreon   .
-      shell: echo 0 > /dev/null
-
     - name: Personalizando as configs iniciais de admin
       replace:
         path: /usr/share/centreon/www/install/steps/step5.php
@@ -225,3 +221,7 @@
         - { from: "'root_password' => ''", to: "'root_password' => '{{ db_pass.stdout }}'"}
         - { from: "'DB_PASS' => ''", to: "'DB_PASS' => '{{ db_pass.stdout }}'"}
         - { from: "'db_pass_confirm' => ''", to: "'db_pass_confirm' => '{{ db_pass.stdout }}'"}
+    
+    
+    - name: Continue a instalacao acessando http://{{hostvars[inventory_hostname]['ansible_default_ipv4']['address']}}/centreon Login admin  Senha {{ adm_pass }}
+      shell: echo 0 > /dev/null
